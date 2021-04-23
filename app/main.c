@@ -34,6 +34,9 @@ static int tcm_transmit_cmd(const void *cmd,int len/*, unsigned int flags, const
 
 
 	rx_len = send_recive(dev,tx,rx,tx_len);
+	if(rx_len < 0){
+		printf("tcm transmit cmd failed! err: %d\n",rx_len);
+	}
 
 	for(i = 0; i < rx_len; i++){
                	 if(i % 16 == 0) printf("\n");
@@ -47,7 +50,9 @@ static int tcm_transmit_cmd(const void *cmd,int len/*, unsigned int flags, const
                 printf("0x%02x, ",*(tx+i));
         }
 	printf("\n");
-#endif	
+#endif
+	free(tx);
+	tx = NULL;
 	return 0;
 }
 
