@@ -49,6 +49,60 @@ static int tcm_transmit_cmd_origin(struct tcm_dev *dev, void *cmd,int cmd_length
 	return 0;
 }
 
+
+static int unpacking_tcm_data(void *cmd, u8* tx_buf, uint16 cmd_len){
+	u8 *dmd_tx = tx_buf;
+	u8 *tcm_buf = (u8 *)cmd;
+	uint16 offset = 0;
+	uint16 tcm_cmd_data_len = cmd_len - HEADER_SIZE_BYTES - CRC_LENTH;
+	/*
+        cmd : [cmd_headre(4byts) crc_value[2bytes]  tcm_cmd(nbytes)]
+        */
+        /*1. get cmd header*/
+        memcpy(dmd_tx,tcm_buf,HEADER_SIZE_BYTES);
+
+        /*2. get standard tcm cmd*/
+        offset = HEADER_SIZE_BYTES;
+        memcpy(&dmd_tx[offset],&tcm_buf[offset+CRC_LENTH],tcm_cmd_data_len);
+
+        /*3. get crc result*/
+        offset = HEADER_SIZE_BYTES+tcm_cmd_data_len;
+        memcpy(&dmd_tx[offset],&tcm_buf[HEADER_SIZE_BYTES],CRC_LENTH);
+	
+	return 0;
+}
+
+static int packing_tcm_data(void *cmd, u8* rx_buf, uint16 rx_len){
+	u8 *dmd_rx = rx_buf;
+        u8 *tcm_buf = (u8 *)cmd;
+	uint16 offset = 0;
+        int ret = 0;
+	struct cmd_header heder;
+        struct tcm_cmd_common cmd_common;
+	
+	memcpy(&heder,dmd_rx,sizeof(struct cmd_header));
+        if(heder.rx_tx_flag != RECV_CMD){
+                ret = -2;
+		return ret;
+        }
+        printf("rx_tx_flag: 0x%02x\n",heder.rx_tx_flag);
+        memcpy(&cmd_common,&dmd_rx[HEADER_SIZE_BYTES],sizeof(struct tcm_cmd_common));
+        printf("data_recv_lenth: 0x%x  flag: 0x%x\n",Reverse32(cmd_common.data_lenth),sw16(cmd_common.flag));
+
+        /*packing cmd struct*/
+        /*1. fill in cmd header */
+        memcpy(tcm_buf,&heder,sizeof(struct cmd_header));
+        /*2. fill in  CRC result */
+        memcpy(&tcm_buf[CRC_LENTH+sizeof(struct cmd_header)],&dmd_rx[rx_len-2],CRC_LENTH); //last 2 bytes are crc result
+        /*3. fill in TCM commom header */
+        memcpy(&tcm_buf[HEADER_SIZE_BYTES+CRC_LENTH],&cmd_common,sizeof(struct tcm_cmd_common));
+        /*4. fill in TCM data */
+        offset = HEADER_SIZE_BYTES + CRC_LENTH + sizeof(struct tcm_cmd_common);
+        memcpy(&tcm_buf[offset],&dmd_rx[HEADER_SIZE_BYTES],rx_len-HEADER_SIZE_BYTES - CRC_LENTH);
+
+	return ret;
+}
+
 uint32 tcm_transmit_cmd(struct tcm_dev *dev,void *cmd, uint16 len,const char *desc){
 	int i = 0;
         u8 *tx;
@@ -56,27 +110,12 @@ uint32 tcm_transmit_cmd(struct tcm_dev *dev,void *cmd, uint16 len,const char *de
 	int tx_len,rx_len;
 	u8 *buf = (u8 *)cmd;
 	int ret = 0;
-	uint16 offset = 0;
-	struct tcm_cmd cmd_buf;
 
-	uint16 tcm_cmd_data_len = len-HEADER_SIZE_BYTES-CRC_LENTH-2;
+	tx_len = len;  
 	tx = (char *)malloc(len);	
-	/*
-	cmd : [cmd_headre(4byts) crc_value[2bytes] total_data_len(2 bytes) tcm_cmd(nbytes)]
-	*/
-	/*1. get cmd header*/
-	memcpy(tx,buf,HEADER_SIZE_BYTES);
-
-	/*2. get standard tcm cmd*/
-	offset = HEADER_SIZE_BYTES;
-	memcpy(&tx[offset],&buf[offset+CRC_LENTH+2],tcm_cmd_data_len);
-
-	/*3. get crc result*/
-	offset = HEADER_SIZE_BYTES+tcm_cmd_data_len;
-	memcpy(&tx[offset],&buf[HEADER_SIZE_BYTES],CRC_LENTH);
+	ret = unpacking_tcm_data(buf,tx,len);
 	
 	/*ready to send data*/
-	tx_len = len - 2;  /*remove total_data_len of 2 bytes*/
 	rx_len = send_recive(dev->uart_device.fd,tx,rx,tx_len);
 	if(rx_len < 0){
 		printf("TCM err occur  %s :\n",desc);
@@ -86,39 +125,31 @@ uint32 tcm_transmit_cmd(struct tcm_dev *dev,void *cmd, uint16 len,const char *de
 
 #ifdef TCM_DEBUG
 	printf(" %s \n",desc);	
-	for( i = 0; i < len-2; i++){
+	for( i = 0; i < len; i++){
 		printf("0x%02x, ",tx[i]);
 	}
-	tx_len = len - 2;
+	tx_len = len;
 	rx_len = send_recive(dev->uart_device.fd,tx,rx,tx_len);
-#endif
+
 	printf("%s :\n",desc);
 	for(i = 0; i < rx_len; i++){
 		if(i % 16 == 0) printf("\n");
 		printf("0x%02x ",*(rx+i));
 	}
-	offset = HEADER_SIZE_BYTES + tcm_cmd_data_len + CRC_LENTH;
-	//memcpy(&buf[offset],rx,rx_len);	
-
-	struct cmd_header heder;
-	struct tcm_cmd_common cmd_common;
-
-	memcpy(&heder,rx,sizeof(struct cmd_header));
-	if(heder.rx_tx_flag != RECV_CMD){
-		ret = -2;
+#endif
+	ret = packing_tcm_data(cmd,rx,rx_len);
+	if(ret < 0){
 		goto out;
 	}
-	printf("rx_tx_flag: 0x%02x\n",heder.rx_tx_flag);
-	memcpy(&cmd_common,&rx[HEADER_SIZE_BYTES],sizeof(struct tcm_cmd_common));	
-	printf("data_recv_lenth: 0x%x  flag: 0x%x\n",Reverse32(cmd_common.data_lenth),sw16(cmd_common.flag));	
-	
-	printf("\n");
-	memcpy(buf,rx,rx_len);	
-	printf("addr of buf_offset: %p\n",(buf));
-	for(i = 0; i < rx_len; i++){
-		printf("0x%02x ",buf[i]);
+
+#ifdef TCM_DEBUG
+	printf("addr of buf_offset: %p\n",&(buf[offset]));
+	for(i = 0; i < rx_len-HEADER_SIZE_BYTES - CRC_LENTH; i++){
+		printf("0x%02x ",buf[i+offset]);
 	}
 	printf("\n");
+#endif
+
 out:	
 	free(tx);
 	tx = NULL;

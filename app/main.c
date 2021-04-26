@@ -23,6 +23,7 @@ int tcm_pcr_read(struct tcm_dev *dev, int pcr_idx, u8 *res_buf)
 {
 	struct tcm_cmd cmd;
 	uint16 crc_result;
+	uint16 cmd_total_lenth;
 	int i = 0;
 	int rc;
 	u8 *buf;
@@ -40,14 +41,15 @@ int tcm_pcr_read(struct tcm_dev *dev, int pcr_idx, u8 *res_buf)
 	cmd.params.pcrread_in.pcr_index = Reverse32(pcr_idx);
 	crc_result = crcCompute_dmt(&(cmd.params.pcrread_in),PCRREAD_CMD_LENTH);
 	cmd.crc_result = sw16(crc_result);
-	cmd.total_cmd_lenth = PCRREAD_CMD_LENTH + HEADER_SIZE_BYTES + CRC_LENTH + 2;
+	cmd_total_lenth = PCRREAD_CMD_LENTH + HEADER_SIZE_BYTES + CRC_LENTH;
 
-	rc = tcm_transmit_cmd(dev,&cmd,cmd.total_cmd_lenth,"pcr read test");
+	rc = tcm_transmit_cmd(dev,&cmd,cmd_total_lenth,"pcr read test");
 
 	if (rc == 0) {
-                buf =(u8 *)(&cmd);
-                memcpy(res_buf, buf, TPM_DIGEST_SIZE);
+               	 buf = cmd.params.pcrread_out.digest;
+		 memcpy(res_buf, buf, TPM_DIGEST_SIZE);
         }
+
 	printf("addr of buf_offset: %p\n",&(cmd.params.pcrread_out.digest));
 	printf("tcm read: \n");
 	for( i = 0; i < TPM_DIGEST_SIZE; i++)

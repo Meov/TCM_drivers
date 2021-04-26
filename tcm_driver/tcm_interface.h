@@ -82,7 +82,6 @@ union tcm_cmd_params {
 struct tcm_cmd{
 	struct cmd_header      header;
 	uint16 crc_result;
-	uint16 total_cmd_lenth; 
 	/* union as tcm cmd data must place at the end of struct*/	
 	union  tcm_cmd_params  params;
 } __attribute__ ((packed));
