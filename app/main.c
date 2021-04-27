@@ -30,17 +30,17 @@ int tcm_pcr_read(struct tcm_dev *dev, int pcr_idx, u8 *res_buf)
 	unsigned char *p;
 	const struct cmd_header tcm_pcrread_heder = {
 		.rx_tx_flag = SEND_CMD,
-		.cmd_length = sw16(PCRREAD_CMD_LENTH+CRC_LENTH),
+		.cmd_length = Reverse16(PCRREAD_CMD_LENTH+CRC_LENTH),
 		.xor_result = SEND_CMD ^ (PCRREAD_CMD_LENTH+CRC_LENTH),
 	};
 
 	cmd.header = tcm_pcrread_heder;
-	cmd.params.pcrread_in.cmd_common.flag = sw16(TCM_TAG_RQU_COMMAND);
+	cmd.params.pcrread_in.cmd_common.flag = Reverse16(TCM_TAG_RQU_COMMAND);
 	cmd.params.pcrread_in.cmd_common.data_lenth = Reverse32(PCRREAD_CMD_LENTH);
 	cmd.params.pcrread_in.cmd_common.cmd_code = Reverse32(TCM_ORG_PCRRead);
 	cmd.params.pcrread_in.pcr_index = Reverse32(pcr_idx);
 	crc_result = crcCompute_dmt(&(cmd.params.pcrread_in),PCRREAD_CMD_LENTH);
-	cmd.crc_result = sw16(crc_result);
+	cmd.crc_result = Reverse16(crc_result);
 	cmd_total_lenth = PCRREAD_CMD_LENTH + HEADER_SIZE_BYTES + CRC_LENTH;
 
 	rc = tcm_transmit_cmd(dev,&cmd,cmd_total_lenth,"pcr read test");

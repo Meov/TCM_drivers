@@ -12,7 +12,7 @@ typedef unsigned char u8;
 typedef unsigned int  uint32;
 typedef unsigned short int  uint16;
 
-#define sw16(x) \
+#define Reverse16(x) \
          ((uint16)( \
                       (((uint16)(x) & (uint16)0x00ff) << 8 ) | \
                       (((uint16)(x) & (uint16)0xff00) >> 8 ) ))

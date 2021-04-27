@@ -87,7 +87,7 @@ static int packing_tcm_data(void *cmd, u8* rx_buf, uint16 rx_len){
         }
         printf("rx_tx_flag: 0x%02x\n",heder.rx_tx_flag);
         memcpy(&cmd_common,&dmd_rx[HEADER_SIZE_BYTES],sizeof(struct tcm_cmd_common));
-        printf("data_recv_lenth: 0x%x  flag: 0x%x\n",Reverse32(cmd_common.data_lenth),sw16(cmd_common.flag));
+        printf("data_recv_lenth: 0x%x  flag: 0x%x\n",Reverse32(cmd_common.data_lenth),Reverse16(cmd_common.flag));
 
         /*packing cmd struct*/
         /*1. fill in cmd header */
