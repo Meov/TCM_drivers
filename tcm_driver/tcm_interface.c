@@ -137,8 +137,10 @@ uint32 tcm_transmit_cmd(struct tcm_dev *dev,void *cmd, uint16 len,const char *de
 
 	tx_len = len;  
 	tx = (char *)malloc(len);
+#ifdef TCM_DEBUG
+	printf("\n------------TCM %s transmit on going...",desc);
+#endif	
 	ret = unpacking_tcm_data(buf,tx,len);
-	
 	/*ready to send data*/
 	rx_len = send_recive(dev->uart_device.fd,tx,rx,tx_len);
 	if(rx_len < 0){

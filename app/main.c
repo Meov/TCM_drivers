@@ -50,14 +50,14 @@ int tcm_pcr_read(struct tcm_dev *dev, int pcr_idx, u8 *res_buf)
 	
 	if (rc == 0) {
 		cmd_total_lenth = Reverse32(cmd.params.pcrread_in.cmd_common.data_lenth);
-		tcm_pcrread_lenth = Reverse32(cmd.params.pcrread_in.cmd_common.data_lenth) - sizeof(struct tcm_cmd_common);
+		tcm_pcrread_lenth = Reverse32(cmd.params.pcrread_in.cmd_common.data_lenth) - TCM_CMD_COMMON_LENTH;
 		buf = cmd.params.pcrread_out.digest;
 		memcpy(res_buf, buf, TPM_DIGEST_SIZE);
 	}
 
 #ifdef TCM_DEBUG
-	printf("addr of buf_offset: %p\n",&(cmd.params.pcrread_out.digest));
-	printf("tcm pcr data lenth: %d  tcm pcrread: ",tcm_pcrread_lenth);
+	printf("\naddr of buf_offset: %p\n",&(cmd.params.pcrread_out.digest));
+	printf("\ntcm pcr data lenth: %d  tcm pcrread: ",tcm_pcrread_lenth);
 	for( i = 0; i < tcm_pcrread_lenth; i++){
         	if(i%16 == 0) printf("\n");
 		printf("0x%02x ", res_buf[i]);
@@ -102,12 +102,69 @@ int tcm_start_up(struct tcm_dev *dev, u8 *res_buf)
         }
 
 #ifdef TCM_DEBUG
-        printf("tcm startup read: \n");
+        printf("\ntcm startup read:");
         for( i = 0; i < TCM_CMD_COMMON_LENTH; i++)
+                if(i % 16 == 0)printf("\n");
 	        printf("0x%02x ", res_buf[i]);
 #endif
         return rc;
 }
+
+
+int tcm_pcr_extend(struct tcm_dev *dev,int pcr_idx, u8 *res_buf)
+{
+        struct tcm_cmd cmd;
+        uint16 crc_result;
+        uint16 cmd_total_lenth;
+        int i = 0;
+        int rc;
+        u8 *buf;
+        unsigned char *p;
+        uint16 cmd_length = sizeof(tcm_pcrextend);
+        u8 crc_lenth = CRC_LENTH;
+
+        const struct cmd_header tcm_pcrextend_heder = {
+                .rx_tx_flag = SEND_CMD,
+                .cmd_length = Reverse16(cmd_length+CRC_LENTH),
+                .xor_result = SEND_CMD ^ (cmd_length+CRC_LENTH),
+        };
+
+        cmd.header = tcm_pcrextend_heder;
+        cmd.params.pcrextend_in.cmd_common.flag = Reverse16(TCM_TAG_RQU_COMMAND);
+        cmd.params.pcrextend_in.cmd_common.data_lenth = Reverse32(cmd_length);
+        cmd.params.pcrextend_in.cmd_common.cmd_code = Reverse32(TCM_ORG_PcrExtend);
+        cmd.params.pcrextend_in.pcr_index = Reverse32(pcr_idx);
+
+	memcpy(cmd.params.pcrextend_in.digest,degist_extend,sizeof(degist_extend));
+#ifdef TCM_DEBUG
+	printf("\ntcm extend send data: ");
+	for(i = 0; i < cmd_length; i++){
+                if(i % 16 == 0)printf("\n");
+                printf("0x%02x ",((u8 *)&(cmd.params.pcrextend_in))[i]);
+        }
+	printf("\n");
+#endif
+	crc_result = crcCompute_dmt(&(cmd.params.pcrextend_in),cmd_length);
+	cmd.crc_result = Reverse16(crc_result);
+        cmd_total_lenth = cmd_length + HEADER_SIZE_BYTES + CRC_LENTH;
+
+        rc = tcm_transmit_cmd(dev,&cmd,cmd_total_lenth,"TCM pcrextend");
+        /*read data back*/
+        if (rc == 0) {
+                 buf = (u8 *)(&(cmd.params.pcrextend_out));
+                 memcpy(res_buf, buf, sizeof(cmd.params.pcrextend_out));
+        }
+
+#ifdef TCM_DEBUG
+        printf("\ntcm extend read data:");
+        for( i = 0; i < sizeof(cmd.params.pcrextend_out); i++){
+		if(i % 16 == 0)printf("\n");
+                printf("0x%02x ", res_buf[i]);
+	}
+#endif
+        return rc;
+}
+
 
 int main(int argc,char *argv[]){
 	int fd;
@@ -133,6 +190,8 @@ int main(int argc,char *argv[]){
 							       dev->uart_device.fd);
 	tcm_start_up(dev,rx);
 	tcm_pcr_read(dev,1,rx);
+	tcm_pcr_extend(dev,1,rx);
+
 #if 0
 	do{
 		scanf("%c", &cmd);

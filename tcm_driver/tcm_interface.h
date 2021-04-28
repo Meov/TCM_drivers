@@ -6,17 +6,14 @@
 #define TCM_TAG_RQU_COMMAND 0x00c1
 #define TCM_ORG_PCRRead 0x00008015
 #define TCM_ORG_Startup 0x00008099
-
-
+#define TCM_ORG_PcrExtend 0x00008014
 #define CRC_LENTH 2
-
-
 
 typedef unsigned char u8;
 typedef unsigned int  uint32;
 typedef unsigned short int  uint16;
 
-#define TCM_DEBUG   /*for tcm debug */
+//#define TCM_DEBUG   /*for tcm debug */
 
 #define Reverse16(x) \
          ((uint16)( \
@@ -80,12 +77,16 @@ struct  tcm_self_test_in{
 } __attribute__ ((packed));
 
 struct  tcm_pcr_extend_in{
-	uint32                    pcr_idx;
-        uint32                    auth_area_size;
-        uint32                    digest_cnt;
-        uint32                    hash_alg;
-        u8                              digest[TPM_DIGEST_SIZE];
+	struct tcm_cmd_common cmd_common;
+	uint32	pcr_index;
+        u8      digest[TPM_DIGEST_SIZE];
 } __attribute__ ((packed));
+
+struct  tcm_pcr_extend_out{
+	struct tcm_cmd_common cmd_common;
+	u8     digest[TPM_DIGEST_SIZE];
+} __attribute__ ((packed));
+
 
 union tcm_cmd_params {
         struct  tcm_startup_in         startup_in;
@@ -94,6 +95,7 @@ union tcm_cmd_params {
         struct  tcm_pcr_read_in        pcrread_in;
         struct  tcm_pcr_read_out       pcrread_out;
         struct  tcm_pcr_extend_in      pcrextend_in;
+	struct  tcm_pcr_extend_out     pcrextend_out;
         struct  tcm_get_random_in      getrandom_in;
         struct  tcm_get_random_out     getrandom_out;
 };
