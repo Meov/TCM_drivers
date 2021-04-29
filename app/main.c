@@ -165,6 +165,61 @@ int tcm_pcr_extend(struct tcm_dev *dev,int pcr_idx, u8 *res_buf)
         return rc;
 }
 
+int tcm_get_random(struct tcm_dev *dev,int random_lenth, u8 *res_buf)
+{
+        struct tcm_cmd cmd;
+        uint16 crc_result;
+        uint16 cmd_total_lenth;
+        int i = 0;
+        int rc;
+        u8 *buf;
+        unsigned char *p;
+        uint16 cmd_length = sizeof(tcm_get_random_data);
+        u8 crc_lenth = CRC_LENTH;
+
+        const struct cmd_header tcm_getrandom_heder = {
+                .rx_tx_flag = SEND_CMD,
+                .cmd_length = Reverse16(cmd_length+CRC_LENTH),
+                .xor_result = SEND_CMD ^ (cmd_length+CRC_LENTH),
+        };
+
+        cmd.header = tcm_getrandom_heder;
+        cmd.params.getrandom_in.cmd_common.flag = Reverse16(TCM_TAG_RQU_COMMAND);
+        cmd.params.getrandom_in.cmd_common.data_lenth = Reverse32(cmd_length);
+        cmd.params.getrandom_in.cmd_common.cmd_code = Reverse32(TCM_ORG_GetRandom);
+        cmd.params.getrandom_in.size = Reverse32(random_lenth);
+
+//#ifdef TCM_DEBUG
+#if 1
+        printf("\ntcm get random tcm data: ");
+        for(i = 0; i < cmd_length; i++){
+                if(i % 16 == 0)printf("\n");
+                printf("0x%02x ",((u8 *)&(cmd.params.getrandom_in))[i]);
+        }
+        printf("\n");
+#endif
+        crc_result = crcCompute_dmt(&(cmd.params.getrandom_in),cmd_length);
+        cmd.crc_result = Reverse16(crc_result);
+        cmd_total_lenth = cmd_length + HEADER_SIZE_BYTES + CRC_LENTH;
+        rc = tcm_transmit_cmd(dev,&cmd,cmd_total_lenth,"TCM getrandom");
+        /*read data back*/
+        if (rc == 0) {
+                 buf = (u8 *)(&(cmd.params.getrandom_out));
+                 memcpy(res_buf, buf, sizeof(cmd.params.getrandom_out));
+        }
+
+//#ifdef TCM_DEBUG
+#if 1
+	struct tcm_get_random_out * buf_get = (struct tcm_get_random_out *)res_buf;
+        printf("\ntcm get random rx data:");
+        for( i = 0; i < Reverse32(cmd.params.getrandom_out.size); i++){
+                if(i % 16 == 0)printf("\n");
+                printf("0x%02x ", buf_get->buffer[i]);
+        }
+#endif
+        return rc;
+}
+
 
 int main(int argc,char *argv[]){
 	int fd;
@@ -191,7 +246,7 @@ int main(int argc,char *argv[]){
 	tcm_start_up(dev,rx);
 	tcm_pcr_read(dev,1,rx);
 	tcm_pcr_extend(dev,1,rx);
-
+	tcm_get_random(dev,0x10,rx);
 #if 0
 	do{
 		scanf("%c", &cmd);

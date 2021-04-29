@@ -7,6 +7,9 @@
 #define TCM_ORG_PCRRead 0x00008015
 #define TCM_ORG_Startup 0x00008099
 #define TCM_ORG_PcrExtend 0x00008014
+#define TCM_ORG_GetRandom 0x00008046
+
+
 #define CRC_LENTH 2
 
 typedef unsigned char u8;
@@ -64,10 +67,12 @@ struct  tcm_pcr_read_out{
 } __attribute__ ((packed));
 
 struct tcm_get_random_in {
+	struct tcm_cmd_common cmd_common;
         uint32  size;
 } __attribute__ ((packed));;
 
 struct tcm_get_random_out {
+	struct tcm_cmd_common cmd_common;
         uint32  size;
         u8      buffer[TPM_MAX_RNG_DATA];
 } __attribute__ ((packed));
